@@ -1,0 +1,30 @@
+# .NET build artifacts
+bin/
+obj/
+out/
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# User secrets / local config
+appsettings.local.json
+appsettings.*.local.json
+*.env
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Test results
+TestResults/
+*.trx
+
+# Logs
+logs/
+*.log
