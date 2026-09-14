@@ -4,8 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Sms.Contracts.Models
+namespace Sms.Client
 {
-    public record MenuItem(string Code, string Name, decimal Price);
-
+    public record OrderResult(bool Success,string? ErrorMessage,string? OrderNumber);
 }
