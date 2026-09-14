@@ -57,7 +57,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
 
             var line =
                 $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} " +
-                $"[{logLevel:u}] {categoryName}: {formatter(state, exception)}";
+                $"[{logLevel.ToString().ToUpperInvariant()}] {categoryName}: {formatter(state, exception)}";
 
             if (exception is not null)
             {

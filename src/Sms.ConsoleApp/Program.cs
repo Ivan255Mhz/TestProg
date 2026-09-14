@@ -15,6 +15,10 @@ try
     using var cts = new CancellationTokenSource();
 
     var builder = Host.CreateApplicationBuilder(args);
+    builder.Configuration.AddJsonFile(
+        Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
+        optional: false,
+        reloadOnChange: true);
     builder.Logging.AddSimpleConsole();
     builder.Logging.AddSmsFileLogger();
 
