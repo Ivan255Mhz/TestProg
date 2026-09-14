@@ -32,12 +32,31 @@ public sealed class HttpSmsClientTests
     {
         var json = """
         {
-            "success": true,
-            "errorMessage": null,
-            "data": [
-                { "code": "P001", "name": "Пицца", "price": 550.00 },
-                { "code": "B001", "name": "Бургер", "price": 420.50 }
-            ]
+            "Command": "GetMenu",
+            "Success": true,
+            "ErrorMessage": "",
+            "Data": {
+                "MenuItems": [
+                    {
+                        "Id": "5979224",
+                        "Article": "A1004292",
+                        "Name": "Каша гречневая",
+                        "Price": 50,
+                        "IsWeighted": false,
+                        "FullPath": "ПРОИЗВОДСТВО\\Гарниры",
+                        "Barcodes": ["57890975627974236429"]
+                    },
+                    {
+                        "Id": "9084246",
+                        "Article": "A1004293",
+                        "Name": "Конфеты Коровка",
+                        "Price": 300,
+                        "IsWeighted": true,
+                        "FullPath": "ДЕСЕРТЫ\\Развес",
+                        "Barcodes": []
+                    }
+                ]
+            }
         }
         """;
 
@@ -47,17 +66,23 @@ public sealed class HttpSmsClientTests
         var menu = await client.GetMenuAsync();
 
         Assert.Equal(2, menu.Count);
-        Assert.Equal("P001", menu[0].Code);
-        Assert.Equal("Пицца", menu[0].Name);
-        Assert.Equal(550.00m, menu[0].Price);
-        Assert.Equal(420.50m, menu[1].Price);
+        Assert.Equal("5979224", menu[0].Id);
+        Assert.Equal("A1004292", menu[0].Article);
+        Assert.Equal("Каша гречневая", menu[0].Name);
+        Assert.Equal(50m, menu[0].Price);
+        Assert.False(menu[0].IsWeighted);
+        Assert.Equal("ПРОИЗВОДСТВО\\Гарниры", menu[0].FullPath);
+        Assert.Single(menu[0].Barcodes);
+        Assert.Equal(300m, menu[1].Price);
+        Assert.True(menu[1].IsWeighted);
+        Assert.Empty(menu[1].Barcodes);
     }
 
     [Fact]
     public async Task GetMenu_Request_HasCorrectUrlMethodAndAuth()
     {
         var handler = new TestHttpMessageHandler(_ => JsonResponse(
-            """{"success": true, "data": []}"""));
+            """{"Command": "GetMenu", "Success": true, "ErrorMessage": "", "Data": {"MenuItems": []}}"""));
         var client = CreateClient(handler);
 
         await client.GetMenuAsync();
@@ -71,13 +96,14 @@ public sealed class HttpSmsClientTests
     }
 
     [Fact]
-    public async Task GetMenu_Request_BodyContainsCommand()
+    public async Task GetMenu_Request_BodyContainsCommandAndWithPrice()
     {
         string? sentBody = null;
         var handler = new TestHttpMessageHandler(request =>
         {
             sentBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            return JsonResponse("""{"success": true, "data": []}""");
+            return JsonResponse(
+                """{"Command": "GetMenu", "Success": true, "ErrorMessage": "", "Data": {"MenuItems": []}}""");
         });
         var client = CreateClient(handler);
 
@@ -85,15 +111,16 @@ public sealed class HttpSmsClientTests
 
         Assert.NotNull(sentBody);
         using var doc = JsonDocument.Parse(sentBody!);
-        Assert.Equal("GetMenu", doc.RootElement.GetProperty("command").GetString());
-        Assert.True(doc.RootElement.TryGetProperty("commandParameters", out _));
+        Assert.Equal("GetMenu", doc.RootElement.GetProperty("Command").GetString());
+        var parameters = doc.RootElement.GetProperty("CommandParameters");
+        Assert.True(parameters.GetProperty("WithPrice").GetBoolean());
     }
 
     [Fact]
     public async Task GetMenu_ServerRejects_ThrowsSmsException()
     {
         var handler = new TestHttpMessageHandler(_ => JsonResponse(
-            """{"success": false, "errorMessage": "Access denied", "data": null}"""));
+            """{"Command": "GetMenu", "Success": false, "ErrorMessage": "Access denied"}"""));
         var client = CreateClient(handler);
 
         var ex = await Assert.ThrowsAsync<SmsException>(() => client.GetMenuAsync());
@@ -139,7 +166,7 @@ public sealed class HttpSmsClientTests
     public async Task GetMenu_MissingData_ThrowsSmsException()
     {
         var handler = new TestHttpMessageHandler(_ => JsonResponse(
-            """{"success": true}"""));
+            """{"Command": "GetMenu", "Success": true, "ErrorMessage": ""}"""));
         var client = CreateClient(handler);
 
         await Assert.ThrowsAsync<SmsException>(() => client.GetMenuAsync());
@@ -149,14 +176,15 @@ public sealed class HttpSmsClientTests
     public async Task SendOrder_SuccessfulResponse_ReturnsSuccessResult()
     {
         var handler = new TestHttpMessageHandler(_ => JsonResponse(
-            """{"success": true, "data": "ORD-12345"}"""));
+            """{"Command": "SendOrder", "Success": true, "ErrorMessage": ""}"""));
         var client = CreateClient(handler);
-        var order = new Order(new[] { new OrderItem("P001", 2) });
+        var order = new Order(
+            "62137983-1117-4D10-87C1-EF40A4348250",
+            new[] { new OrderItem("5979224", 1m) });
 
         var result = await client.SendOrderAsync(order);
 
         Assert.True(result.Success);
-        Assert.Equal("ORD-12345", result.OrderNumber);
         Assert.Null(result.ErrorMessage);
     }
 
@@ -164,9 +192,11 @@ public sealed class HttpSmsClientTests
     public async Task SendOrder_ServerRejects_ReturnsFailureResult()
     {
         var handler = new TestHttpMessageHandler(_ => JsonResponse(
-            """{"success": false, "errorMessage": "Out of stock"}"""));
+            """{"Command": "SendOrder", "Success": false, "ErrorMessage": "Out of stock"}"""));
         var client = CreateClient(handler);
-        var order = new Order(new[] { new OrderItem("P001", 100) });
+        var order = new Order(
+            "62137983-1117-4D10-87C1-EF40A4348250",
+            new[] { new OrderItem("9084246", 100m) });
 
         var result = await client.SendOrderAsync(order);
 
@@ -175,24 +205,39 @@ public sealed class HttpSmsClientTests
     }
 
     [Fact]
-    public async Task SendOrder_Request_BodyContainsOrder()
+    public async Task SendOrder_Request_BodyContainsOrderIdAndStringQuantities()
     {
         string? sentBody = null;
         var handler = new TestHttpMessageHandler(request =>
         {
             sentBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            return JsonResponse("""{"success": true}""");
+            return JsonResponse(
+                """{"Command": "SendOrder", "Success": true, "ErrorMessage": ""}""");
         });
         var client = CreateClient(handler);
-        var order = new Order(new[] { new OrderItem("P001", 2), new OrderItem("B001", 1) });
+        var order = new Order(
+            "62137983-1117-4D10-87C1-EF40A4348250",
+            new[]
+            {
+                new OrderItem("5979224", 1m),
+                new OrderItem("9084246", 0.408m),
+            });
 
         await client.SendOrderAsync(order);
 
         using var doc = JsonDocument.Parse(sentBody!);
-        var parameters = doc.RootElement.GetProperty("commandParameters");
-        var firstItem = parameters.GetProperty("items")[0];
-        Assert.Equal("P001", firstItem.GetProperty("menuCode").GetString());
-        Assert.Equal(2, firstItem.GetProperty("quantity").GetInt32());
+        var parameters = doc.RootElement.GetProperty("CommandParameters");
+        Assert.Equal(
+            "62137983-1117-4D10-87C1-EF40A4348250",
+            parameters.GetProperty("OrderId").GetString());
+
+        var items = parameters.GetProperty("MenuItems");
+        Assert.Equal(2, items.GetArrayLength());
+
+        Assert.Equal("5979224", items[0].GetProperty("Id").GetString());
+        Assert.Equal("1", items[0].GetProperty("Quantity").GetString());
+
+        Assert.Equal("9084246", items[1].GetProperty("Id").GetString());
+        Assert.Equal("0.408", items[1].GetProperty("Quantity").GetString());
     }
 }
-

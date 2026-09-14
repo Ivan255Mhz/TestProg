@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using System.Globalization;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Sms.Client.Interfaces;
@@ -11,7 +12,10 @@ namespace Sms.Client.Http;
 public sealed class HttpSmsClient : ISmsClient
 {
     private static readonly JsonSerializerOptions JsonOptions =
-        new(JsonSerializerDefaults.Web);
+        new()
+        {
+            PropertyNameCaseInsensitive = true,
+        };
 
     private readonly HttpClient _httpClient;
     private readonly SmsClientOptions _options;
@@ -23,42 +27,46 @@ public sealed class HttpSmsClient : ISmsClient
     }
 
     public async Task<IReadOnlyList<MenuItem>> GetMenuAsync(
-    CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         var envelope = await SendEnvelopeAsync(
-            new ApiRequest("GetMenu", new { }),
+            new ApiRequest("GetMenu", new GetMenuParameters(WithPrice: true)),
             cancellationToken);
 
         if (!envelope.Success)
         {
             throw new SmsException(
-                envelope.ErrorMessage ?? "Server rejected GetMenu request");
+                NonEmpty(envelope.ErrorMessage) ?? "Server rejected GetMenu request");
         }
 
-        var menu = DeserializeData<List<MenuItem>>(envelope.Data);
-        return menu;
+        var data = DeserializeData<MenuData>(envelope.Data);
+        return data.MenuItems;
     }
 
     public async Task<OrderResult> SendOrderAsync(
-    Order order,
-    CancellationToken cancellationToken = default)
+        Order order,
+        CancellationToken cancellationToken = default)
     {
+        var items = order.Items
+            .Select(i => new SendOrderItem(
+                Id: i.Id,
+                Quantity: i.Quantity.ToString(CultureInfo.InvariantCulture)))
+            .ToList();
+
+        var parameters = new SendOrderParameters(OrderId: order.Id, MenuItems: items);
+
         var envelope = await SendEnvelopeAsync(
-            new ApiRequest("SendOrder", order),
+            new ApiRequest("SendOrder", parameters),
             cancellationToken);
 
         if (envelope.Success)
         {
-            return new OrderResult(
-                Success: true,
-                ErrorMessage: null,
-                OrderNumber: ReadOrderNumber(envelope.Data));
+            return new OrderResult(Success: true, ErrorMessage: null);
         }
 
         return new OrderResult(
             Success: false,
-            ErrorMessage: envelope.ErrorMessage ?? "Server rejected the order",
-            OrderNumber: null);
+            ErrorMessage: NonEmpty(envelope.ErrorMessage) ?? "Server rejected the order");
     }
 
     private async Task<ApiResponse> SendEnvelopeAsync(
@@ -121,9 +129,9 @@ public sealed class HttpSmsClient : ISmsClient
         }
     }
 
-    private T DeserializeData<T>(object? data) where T : class
+    private T DeserializeData<T>(JsonElement? data) where T : class
     {
-        if (data is not JsonElement element)
+        if (data is not { ValueKind: JsonValueKind.Object } element)
         {
             throw new SmsException(
                 $"Server response does not contain Data for {typeof(T).Name}");
@@ -136,17 +144,13 @@ public sealed class HttpSmsClient : ISmsClient
         }
         catch (JsonException ex)
         {
-            throw new SmsException($"Server Data has unexpected format for {typeof(T).Name}", ex);
+            throw new SmsException(
+                $"Server Data has unexpected format for {typeof(T).Name}", ex);
         }
     }
 
-    private static string? ReadOrderNumber(object? data)
+    private static string? NonEmpty(string value)
     {
-        if (data is JsonElement { ValueKind: JsonValueKind.String } element)
-        {
-            return element.GetString();
-        }
-        return null;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
-
 }

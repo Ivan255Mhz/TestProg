@@ -6,5 +6,7 @@ using System.Threading.Tasks;
 
 namespace Sms.Client
 {
-    public record OrderResult(bool Success,string? ErrorMessage,string? OrderNumber);
+    public record OrderResult(
+    bool Success,
+    string? ErrorMessage);
 }
