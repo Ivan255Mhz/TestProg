@@ -13,4 +13,6 @@ public sealed class SmsClientOptions
     public string Password { get; set; } = string.Empty;
 
     public int TimeoutSeconds { get; set; } = 30;
+
+    public string TransportType { get; set; } = "Http";
 }
