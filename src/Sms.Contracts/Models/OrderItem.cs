@@ -6,6 +6,5 @@ using System.Threading.Tasks;
 
 namespace Sms.Contracts.Models
 {
-    public record OrderItem(string MenuCode, int Quantity);
-
+    public record OrderItem(string Id, decimal Quantity);
 }

@@ -6,5 +6,5 @@ using System.Threading.Tasks;
 
 namespace Sms.Contracts.Models
 {
-    public record Order(IReadOnlyList<OrderItem> Items);
+    public record Order(string Id, IReadOnlyList<OrderItem> Items);
 }
