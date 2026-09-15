@@ -3,19 +3,16 @@
 ## Стек
 
 - .NET 8.0 (C#)
-- HTTP + Basic-аутентификация, JSON (System.Text.Json)
 - gRPC (Grpc.Net.Client, proto-файл из задания)
 - PostgreSQL + EF Core (Npgsql)
-- WPF + MVVM
-- appsettings.json (Microsoft.Extensions.Configuration)
-- Логирование в файл (Microsoft.Extensions.Logging)
+- WPF 
 - Тесты: xUnit
 
 ## Архитектура
 
 ```
 src/
-  Sms.Contracts   — модели («Блюдо», «Заказ») и транспортный формат (обёртка Command/Success/... , sms.proto)
+  Sms.Contracts   — модели («Блюдо», «Заказ») и транспортный формат 
   Sms.Client      — библиотека (.dll): интерфейс ISmsClient, HTTP-клиент, gRPC-клиент, фабрика
   Sms.ConsoleApp  — консольное приложение: меню → PostgreSQL → ввод заказа → отправка на сервер
   Sms.WpfApp      — WPF-приложение: таблица «Поле / Значение / Комментарий» для переменных среды
@@ -28,7 +25,7 @@ ConsoleApp → ISmsClient → HttpSmsClient  (Basic auth, JSON)
                         → GrpcSmsClient  (gRPC, без авторизации)
 ```
 
-Транспорт (Http / Grpc) переключается в конфиге, без правки кода.
+Транспорт (Http / Grpc) переключается в конфиге
 
 ## Как запустить
 
@@ -42,7 +39,7 @@ ConsoleApp → ISmsClient → HttpSmsClient  (Basic auth, JSON)
 dotnet --version
 ```
 
-### 2. Установить Docker Desktop (если не установлен)
+### 2. Установить Docker Desktop 
 
 Скачайте и установите: https://www.docker.com/products/docker-desktop/
 Запустите Docker Desktop и дождитесь статуса «Running».
