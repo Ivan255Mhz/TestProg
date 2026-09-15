@@ -28,6 +28,11 @@ try
     services.AddSingleton<SmsClientFactory>();
     services.AddSingleton<OrderInputParser>();
 
+    var clientOptions = new SmsClientOptions();
+    builder.Configuration.GetSection(SmsClientOptions.SectionName).Bind(clientOptions);
+    services.AddSingleton<ISmsClient>(sp =>
+        sp.GetRequiredService<SmsClientFactory>().Create(clientOptions));
+
     services.AddDbContext<AppDbContext>(options =>
     {
         var connectionString = builder.Configuration.GetConnectionString("SmsDb")
@@ -46,8 +51,7 @@ try
     logger.LogInformation("Application started");
     Console.WriteLine("=== SMS Консольное приложение ===");
 
-    var options = new SmsClientOptions();
-    builder.Configuration.GetSection(SmsClientOptions.SectionName).Bind(options);
+    var options = clientOptions;
     logger.LogInformation(
         "Client configured: TransportType={TransportType}, BaseUrl={BaseUrl}, Endpoint={Endpoint}",
         options.TransportType, options.BaseUrl, options.Endpoint);
@@ -62,8 +66,7 @@ try
     }
 
     // 2. СМС-клиент, получение и сохранение меню
-    var factory = host.Services.GetRequiredService<SmsClientFactory>();
-    ISmsClient smsClient = factory.Create(options);
+    ISmsClient smsClient = host.Services.GetRequiredService<ISmsClient>();
     var menuService = host.Services.GetRequiredService<MenuService>();
 
     logger.LogInformation(
