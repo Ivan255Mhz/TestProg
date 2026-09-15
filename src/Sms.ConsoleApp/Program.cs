@@ -55,40 +55,35 @@ try
         .CreateLogger("Sms.ConsoleApp");
 
     logger.LogInformation("Application started");
-    console.WriteLine("=== SMS Консольное приложение ===");
 
     logger.LogInformation(
-        "Client configured: TransportType={TransportType}, BaseUrl={BaseUrl}, Endpoint={Endpoint}",
-        clientOptions.TransportType, clientOptions.BaseUrl, clientOptions.Endpoint);
+          "Client configured: TransportType={TransportType}, BaseUrl={BaseUrl}, Endpoint={Endpoint}",
+          clientOptions.TransportType, clientOptions.BaseUrl, clientOptions.Endpoint);
 
     // 1. База данных
     {
         using var scope = host.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync(cts.Token);
-        logger.LogInformation("Database initialized");
-        console.WriteLine("База данных инициализирована.");
+        logger.LogInformation("Database initialized");;
     }
 
     // 2. СМС-клиент, получение и сохранение меню
     ISmsClient smsClient = host.Services.GetRequiredService<ISmsClient>();
 
-    logger.LogInformation(
-        "Requesting menu: TransportType={TransportType}", clientOptions.TransportType);
-    console.WriteLine($"Получение меню ({clientOptions.TransportType})...");
+    logger.LogInformation("Requesting menu: TransportType={TransportType}", clientOptions.TransportType);
 
     IReadOnlyList<MenuItemEntity> menu;
+
     try
     {
         var freshMenu = await smsClient.GetMenuAsync(cts.Token);
         logger.LogInformation("Menu received: {Count} items", freshMenu.Count);
-        console.WriteLine($"Получено блюд: {freshMenu.Count}");
 
         using var scope = host.Services.CreateScope();
         menu = await scope.ServiceProvider.GetRequiredService<MenuService>()
             .UpdateMenuFromServerAsync(freshMenu, cts.Token);
         logger.LogInformation("Menu saved to database");
-        console.WriteLine("Меню сохранено в PostgreSQL.");
     }
     catch (Exception ex)
     {
@@ -101,7 +96,7 @@ try
 
     // 3. Вывод меню
     console.WriteLine();
-    console.WriteLine("=== МЕНЮ ===");
+    console.WriteLine("  МЕНЮ  ");
     foreach (var item in menu)
     {
         console.WriteLine($"{item.Name} – {item.Id} ({item.Article}) – {item.Price:0.00}");
