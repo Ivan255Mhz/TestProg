@@ -98,9 +98,7 @@ try
     Console.WriteLine("=== МЕНЮ ===");
     foreach (var item in menu)
     {
-        var weightedMark = item.IsWeighted ? " (весовое)" : string.Empty;
-        Console.WriteLine($"{item.Name} – {item.Id} – {item.Price:0.00}{weightedMark}");
-        Console.WriteLine($"    {item.FullPath}, артикул {item.Article}");
+        Console.WriteLine($"{item.Name} – {item.Id} ({item.Article}) – {item.Price:0.00}");
     }
 
     // 4. Ввод и отправка заказа
