@@ -16,8 +16,8 @@ public sealed class OrderService(
         CancellationToken cancellationToken = default)
     {
         console.WriteLine();
-        console.WriteLine("Введите заказ в формате: Id:Количество;Id:Количество");
-        console.WriteLine("Пример: 5979224:2;9084246:0.408   ('exit' — выход)");
+        console.WriteLine("Введите заказ в формате: Код:Количество;Код:Количество");
+        console.WriteLine("Пример: P001:2;G001:0.5   ('exit' — выход)");
 
         var order = new Order(Guid.NewGuid().ToString(), new List<OrderItem>());
 
