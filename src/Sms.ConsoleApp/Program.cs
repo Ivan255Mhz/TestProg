@@ -20,7 +20,7 @@ try
         Path.Combine(AppContext.BaseDirectory, "appsettings.json"),
         optional: false,
         reloadOnChange: true);
-    builder.Logging.AddSimpleConsole();
+    builder.Logging.ClearProviders();
     builder.Logging.AddSmsFileLogger();
 
     fileLoggerFactory = LoggerFactory.Create(b => b.AddProvider(new FileLoggerProvider()));
