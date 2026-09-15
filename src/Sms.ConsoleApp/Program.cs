@@ -10,6 +10,7 @@ using Sms.ConsoleApp.Data;
 using Sms.ConsoleApp.Logging;
 using Sms.ConsoleApp.Services;
 
+ILoggerFactory? fileLoggerFactory = null;
 try
 {
     using var cts = new CancellationTokenSource();
@@ -22,14 +23,18 @@ try
     builder.Logging.AddSimpleConsole();
     builder.Logging.AddSmsFileLogger();
 
-    var services = builder.Services;
+    fileLoggerFactory = LoggerFactory.Create(b => b.AddProvider(new FileLoggerProvider()));
 
-    services.AddHttpClient();
-    services.AddSingleton<SmsClientFactory>();
-    services.AddSingleton<OrderInputParser>();
+    var services = builder.Services;
 
     var clientOptions = new SmsClientOptions();
     builder.Configuration.GetSection(SmsClientOptions.SectionName).Bind(clientOptions);
+
+    services.AddHttpClient("SmsClient", c =>
+        c.Timeout = TimeSpan.FromSeconds(clientOptions.TimeoutSeconds));
+    services.AddSingleton<SmsClientFactory>();
+    services.AddSingleton<OrderInputParser>();
+    services.AddSingleton<ConsoleOutput>();
     services.AddSingleton<ISmsClient>(sp =>
         sp.GetRequiredService<SmsClientFactory>().Create(clientOptions));
 
@@ -40,21 +45,21 @@ try
         options.UseNpgsql(connectionString);
     });
 
-    services.AddSingleton<MenuService>();
-    services.AddSingleton<OrderService>();
+    services.AddScoped<MenuService>();
+    services.AddScoped<OrderService>();
 
     using var host = builder.Build();
 
+    var console = host.Services.GetRequiredService<ConsoleOutput>();
     var logger = host.Services.GetRequiredService<ILoggerFactory>()
         .CreateLogger("Sms.ConsoleApp");
 
     logger.LogInformation("Application started");
-    Console.WriteLine("=== SMS Консольное приложение ===");
+    console.WriteLine("=== SMS Консольное приложение ===");
 
-    var options = clientOptions;
     logger.LogInformation(
         "Client configured: TransportType={TransportType}, BaseUrl={BaseUrl}, Endpoint={Endpoint}",
-        options.TransportType, options.BaseUrl, options.Endpoint);
+        clientOptions.TransportType, clientOptions.BaseUrl, clientOptions.Endpoint);
 
     // 1. База данных
     {
@@ -62,48 +67,52 @@ try
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.EnsureCreatedAsync(cts.Token);
         logger.LogInformation("Database initialized");
-        Console.WriteLine("База данных инициализирована.");
+        console.WriteLine("База данных инициализирована.");
     }
 
     // 2. СМС-клиент, получение и сохранение меню
     ISmsClient smsClient = host.Services.GetRequiredService<ISmsClient>();
-    var menuService = host.Services.GetRequiredService<MenuService>();
 
     logger.LogInformation(
-        "Requesting menu: TransportType={TransportType}", options.TransportType);
-    Console.WriteLine($"Получение меню ({options.TransportType})...");
+        "Requesting menu: TransportType={TransportType}", clientOptions.TransportType);
+    console.WriteLine($"Получение меню ({clientOptions.TransportType})...");
 
     IReadOnlyList<MenuItemEntity> menu;
     try
     {
         var freshMenu = await smsClient.GetMenuAsync(cts.Token);
         logger.LogInformation("Menu received: {Count} items", freshMenu.Count);
-        Console.WriteLine($"Получено блюд: {freshMenu.Count}");
+        console.WriteLine($"Получено блюд: {freshMenu.Count}");
 
-        menu = await menuService.UpdateMenuFromServerAsync(freshMenu, cts.Token);
+        using var scope = host.Services.CreateScope();
+        menu = await scope.ServiceProvider.GetRequiredService<MenuService>()
+            .UpdateMenuFromServerAsync(freshMenu, cts.Token);
         logger.LogInformation("Menu saved to database");
-        Console.WriteLine("Меню сохранено в PostgreSQL.");
+        console.WriteLine("Меню сохранено в PostgreSQL.");
     }
     catch (Exception ex)
     {
         logger.LogError(ex, "Menu request/save failed");
-        Console.WriteLine($"Ошибка получения меню: {ex.Message}");
-        Console.WriteLine("Приложение завершает работу.");
+        console.WriteLine($"Ошибка получения меню: {ex.Message}");
+        console.WriteLine("Приложение завершает работу.");
         logger.LogInformation("Application stopped");
         return 1;
     }
 
     // 3. Вывод меню
-    Console.WriteLine();
-    Console.WriteLine("=== МЕНЮ ===");
+    console.WriteLine();
+    console.WriteLine("=== МЕНЮ ===");
     foreach (var item in menu)
     {
-        Console.WriteLine($"{item.Name} – {item.Id} ({item.Article}) – {item.Price:0.00}");
+        console.WriteLine($"{item.Name} – {item.Id} ({item.Article}) – {item.Price:0.00}");
     }
 
     // 4. Ввод и отправка заказа
-    var orderService = host.Services.GetRequiredService<OrderService>();
-    await orderService.RunOrderLoopAsync(menu, cts.Token);
+    using (var scope = host.Services.CreateScope())
+    {
+        var orderService = scope.ServiceProvider.GetRequiredService<OrderService>();
+        await orderService.RunOrderLoopAsync(menu, cts.Token);
+    }
 
     logger.LogInformation("Application stopped");
     return 0;
@@ -111,5 +120,11 @@ try
 catch (Exception ex)
 {
     Console.Error.WriteLine($"Критическая ошибка: {ex.Message}");
+    fileLoggerFactory?.CreateLogger("Sms.ConsoleApp")
+        .LogError(ex, "Критическая ошибка приложения");
     return 2;
+}
+finally
+{
+    fileLoggerFactory?.Dispose();
 }

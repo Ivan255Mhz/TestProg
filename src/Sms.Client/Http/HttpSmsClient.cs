@@ -40,7 +40,8 @@ public sealed class HttpSmsClient : ISmsClient
         }
 
         var data = DeserializeData<MenuData>(envelope.Data);
-        return data.MenuItems;
+        return data.MenuItems
+            ?? throw new SmsException("Server response does not contain menu items");
     }
 
     public async Task<OrderResult> SendOrderAsync(
@@ -152,5 +153,9 @@ public sealed class HttpSmsClient : ISmsClient
     private static string? NonEmpty(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    public void Dispose()
+    {
     }
 }

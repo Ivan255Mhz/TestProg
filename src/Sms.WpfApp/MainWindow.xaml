@@ -79,7 +79,7 @@
                       x:Name="EnvVarsGrid"
                       Margin="16,0,16,16"
                       AutoGenerateColumns="False"
-                      CanUserAddRows="True"
+                      CanUserAddRows="False"
                       CanUserDeleteRows="False"
                       CanUserResizeRows="False"
                       HeadersVisibility="All"

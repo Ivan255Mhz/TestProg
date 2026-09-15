@@ -9,8 +9,25 @@ namespace Sms.WpfApp;
 
 public partial class App : Application
 {
+    private ILoggerFactory? _loggerFactory;
+
     private void App_OnStartup(object sender, StartupEventArgs e)
     {
+        _loggerFactory = LoggerFactory.Create(builder =>
+            builder.AddProvider(new FileLoggerProvider()));
+
+        DispatcherUnhandledException += (_, args) =>
+        {
+            _loggerFactory.CreateLogger("Sms.WpfApp")
+                .LogError(args.Exception, "Необработанная ошибка UI");
+            MessageBox.Show(
+                $"Ошибка: {args.Exception.Message}",
+                "Ошибка",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            args.Handled = true;
+        };
+
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -20,10 +37,7 @@ public partial class App : Application
         var names = envSection.GetSection("Names").Get<string[]>() ?? [];
         var defaultValue = envSection["DefaultValue"] ?? string.Empty;
 
-        var loggerFactory = LoggerFactory.Create(builder =>
-            builder.AddProvider(new FileLoggerProvider()));
-
-        var serviceLogger = loggerFactory.CreateLogger<EnvVarService>();
+        var serviceLogger = _loggerFactory.CreateLogger<EnvVarService>();
         var service = new EnvVarService(serviceLogger);
 
         serviceLogger.LogInformation("Приложение запущено, переменных в конфигурации: {Count}", names.Length);
@@ -34,7 +48,8 @@ public partial class App : Application
         window.Closed += (_, _) =>
         {
             serviceLogger.LogInformation("Приложение остановлено");
-            loggerFactory.Dispose();
+            _loggerFactory.Dispose();
+            _loggerFactory = null;
         };
         window.Show();
     }

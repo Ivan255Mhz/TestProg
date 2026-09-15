@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 
 namespace Sms.WpfApp.Services;
 
@@ -24,10 +25,11 @@ public sealed class EnvVarService
             string comment;
             if (current is null)
             {
+                InitializeUserVariable(name, defaultValue);
                 value = defaultValue;
-                comment = "Переменная не задана в реестре пользователя";
+                comment = "Инициализирована значением по умолчанию";
                 _logger.LogInformation(
-                    "Переменная '{Name}' не задана, будет использовано значение по умолчанию",
+                    "Переменная '{Name}' отсутствует, инициализирована значением по умолчанию на уровне User",
                     name);
             }
             else
@@ -40,6 +42,18 @@ public sealed class EnvVarService
         }
 
         return rows;
+    }
+
+    private static void InitializeUserVariable(string name, string value)
+    {
+        if (value.Length == 0)
+        {
+            using var environmentKey = Registry.CurrentUser.OpenSubKey("Environment", writable: true);
+            environmentKey?.SetValue(name, string.Empty);
+            return;
+        }
+
+        Environment.SetEnvironmentVariable(name, value, EnvironmentVariableTarget.User);
     }
 
     private void OnValueChanged(EnvVarRow row, string? newValue)

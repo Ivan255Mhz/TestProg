@@ -2,7 +2,7 @@
 
 namespace Sms.Client.Interfaces;
 
-public interface ISmsClient
+public interface ISmsClient : IDisposable
 {
     Task<IReadOnlyList<MenuItem>> GetMenuAsync(CancellationToken cancellationToken = default);
 

@@ -34,7 +34,6 @@ public sealed class SmsClientFactory
     {
         var httpClient = _httpClientFactory?.CreateClient("SmsClient")
             ?? new HttpClient();
-        httpClient.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         return new HttpSmsClient(httpClient, options);
     }
 
@@ -44,6 +43,6 @@ public sealed class SmsClientFactory
         {
             DisposeHttpClient = true,
         });
-        return new GrpcSmsClient(channel);
+        return new GrpcSmsClient(channel, options);
     }
 }
